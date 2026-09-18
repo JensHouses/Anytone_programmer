@@ -327,6 +327,32 @@ atprog/
   cli.py          Kommandozeile
 ```
 
+## Dank und Quellen
+
+atprog enthält keinen fremden Quelltext, stützt sich aber auf das
+veröffentlichte Wissen anderer Projekte. Ehre, wem Ehre gebührt:
+
+* **[qdmr](https://github.com/hmatuschek/qdmr)** von Hannes Matuschek (DM3MAT):
+  Referenz für das AnyTone-Programmierprotokoll (`lib/anytone_interface.cc`)
+  und für die Ablage der Rufzeichendatenbank des D868UV
+  (`lib/d868uv_callsigndb.hh`). An dieser Beschreibung wurde das Protokoll
+  gegengeprüft; die Abweichungen des AT-D878UV II Plus sind in
+  [docs/PROTOKOLL.md](docs/PROTOKOLL.md) dokumentiert.
+* **[dmrconfig](https://github.com/sergev/dmrconfig)** von Serge Vakulenko:
+  zweite unabhängige Referenz für das Kommandoformat (`serial.c`).
+* **[radioid.net](https://radioid.net/)**: Quelle der DMR-Nutzerliste, die
+  `userdb fetch` für die Rufzeichendatenbank lädt.
+* **[pyserial](https://github.com/pyserial/pyserial)**: wird als serielles
+  Backend genutzt, falls installiert (unter Windows erforderlich).
+* Die CSV-Formate folgen der Original-CPS von AnyTone, damit beide Programme
+  dieselben Dateien lesen und schreiben können.
+
+Alle Feldlagen und Protokolleigenheiten wurden zusätzlich an einem echten
+AT-D878UV II Plus nachgemessen; die Messungen samt widerlegter Vermutungen
+stehen in [docs/PROTOKOLL.md](docs/PROTOKOLL.md).
+
+Liebe Grüße, Jens (DA6JEY)
+
 ## Hinweise
 
 * Das Gerät muss zum Programmieren eingeschaltet und über ein USB-Kabel **mit
