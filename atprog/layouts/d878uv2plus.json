@@ -1,0 +1,756 @@
+{
+  "id": "d878uv2plus",
+  "title": "AnyTone AT-D878UV II Plus",
+  "plan_revision": 10,
+  "plan_revised": "2026-09-18",
+  "geprueft_an": "AT-D878UV II Plus, Firmware 4.00 (Kennung V101)",
+  "identify": [
+    "878UV2",
+    "878UVII",
+    "D878UV2",
+    "878UV",
+    "D878UV"
+  ],
+  "notes": [
+    "Die Angabe 'plan_revision' bezeichnet diese Datei - nicht die Geraetefirmware (4.00, Kennung V101) und nicht die Programmversion von atprog (1.00).",
+    "Frequenzen stehen als BCD in 10-Hz-Schritten. Der Kanalname beginnt bei Offset 0x23, der Kontaktverweis ist ein uint16 bei 0x14, der Zeitschlitz steckt in Bit 0 von 0x21, der Color Code in 0x20, die Tonsignalisierung in 0x09 bis 0x0B, der Scanlistenverweis in 0x1B. Alles an einem echten Geraet gegengeprueft.",
+    "Das Kontakt-Bitmap bei 0x02640000 ist invertiert: geloeschtes Bit bedeutet belegt.",
+    "Kontakte liegen in Baenken zu 1000 Stueck im Abstand 0x40000, nicht flach hintereinander.",
+    "Zu den Kontakten gehoert zwingend die Indextabelle bei 0x02600000: je Kontakt ein uint32 mit dessen Platznummer, aufsteigend nach Kontakt-ID. Fehlt sie, zeigt das Geraet nach einem Schreibvorgang nur einen einzigen Kontakt.",
+    "Die bei qdmr dokumentierte Kontakt-ID-Tabelle 0x04340000 ist auf diesem Modell unbenutzt.",
+    "Der Bereich 0x025C0000 enthaelt Statusmeldungen, nicht die RX-Gruppenlisten.",
+    "Das Sichtbarkeits-Bitmap der Zonen liegt bei 0x024C1360: gesetztes Bit bedeutet versteckt. Fehlt der Bereich in einer Sicherung, stehen nach einem Zuruecksetzen alle Zonen auf versteckt und lassen sich am Geraet nicht anwaehlen.",
+    "Das Geraet fuehrt jeden Bereich zweifach im Abstand 0x20000 und wechselt zwischen den Kopien; massgeblich ist die niedrigere Adresse.",
+    "Das Geraet puffert Schreibzugriffe und uebernimmt sie erst beim END. Waehrend einer Schreibsitzung darf nicht gelesen werden - das verwirft den Puffer. Lesen, Schreiben und Pruefen gehoeren deshalb in getrennte Sitzungen.",
+    "Jedes Feld traegt eine Konfidenz. 'atprog verify' prueft jeden Datensatz per Round-Trip gegen das eigene Abbild; erst wenn das aufgeht, erlaubt 'atprog apply' feldweises Schreiben."
+  ],
+  "regions": [
+    {
+      "name": "settings",
+      "addr": "0x02500000",
+      "size": "0x2000",
+      "confidence": "low",
+      "desc": "Grundeinstellungen, APRS und Erweiterungen",
+      "einstufung": "gesichert",
+      "zweck": "Grundeinstellungen; nur APRS daraus ausgewertet"
+    },
+    {
+      "name": "zone_bitmap",
+      "addr": "0x024C1300",
+      "size": "0x0020",
+      "confidence": "high",
+      "desc": "Belegungsbitmap Zonen",
+      "einstufung": "ausgewertet",
+      "zweck": "welche Zonen belegt sind"
+    },
+    {
+      "name": "radioid_bitmap",
+      "addr": "0x024C1320",
+      "size": "0x0020",
+      "confidence": "high",
+      "desc": "Belegungsbitmap Radio-IDs",
+      "einstufung": "ausgewertet",
+      "zweck": "welche Radio-IDs belegt sind"
+    },
+    {
+      "name": "scanlist_bitmap",
+      "addr": "0x024C1340",
+      "size": "0x0020",
+      "confidence": "high",
+      "desc": "Belegungsbitmap Scanlisten",
+      "einstufung": "ausgewertet",
+      "zweck": "welche Scanlisten belegt sind"
+    },
+    {
+      "name": "channel_bitmap",
+      "addr": "0x024C1500",
+      "size": "0x0200",
+      "confidence": "high",
+      "desc": "Belegungsbitmap Kanaele (4000 Bit)",
+      "einstufung": "ausgewertet",
+      "zweck": "welche Kanaele belegt sind"
+    },
+    {
+      "name": "contact_bitmap",
+      "addr": "0x02640000",
+      "size": "0x0500",
+      "confidence": "high",
+      "invert": true,
+      "desc": "Belegungsbitmap Kontakte, invertiert (0 = belegt)",
+      "einstufung": "ausgewertet",
+      "zweck": "welche Kontakte belegt sind, invertiert"
+    },
+    {
+      "name": "status_messages",
+      "addr": "0x025C0000",
+      "size": "0x6400",
+      "confidence": "medium",
+      "desc": "Statusmeldungen",
+      "einstufung": "gesichert",
+      "zweck": "Statusmeldungen, Aufbau nicht untersucht"
+    },
+    {
+      "name": "dtmf_contacts",
+      "addr": "0x02940000",
+      "size": "0x1000",
+      "confidence": "low",
+      "desc": "DTMF-/Schnellwahlkontakte: Ziffern als Nibbles, Laenge bei 0x07, Name ab 0x08",
+      "einstufung": "gesichert",
+      "zweck": "DTMF-Schnellwahl; Satzaufbau bekannt, Abstand unbestimmt"
+    },
+    {
+      "name": "contact_index",
+      "addr": "0x02600000",
+      "size": "0x10000",
+      "confidence": "high",
+      "desc": "Kontakt-Indextabelle: je Kontakt ein uint32, nach ID sortiert, 0xFF beendet sie",
+      "einstufung": "ausgewertet",
+      "zweck": "Kontakte nach ID sortiert; ohne sie zeigt das Geraet nur einen"
+    },
+    {
+      "name": "zone_hide",
+      "addr": "0x024C1360",
+      "size": "0x0020",
+      "confidence": "high",
+      "desc": "Sichtbarkeit der Zonen: gesetztes Bit = versteckt",
+      "einstufung": "ausgewertet",
+      "zweck": "Sichtbarkeit der Zonen"
+    }
+  ],
+  "objects": {
+    "channel": {
+      "title": "Kanaele",
+      "count": 4000,
+      "record_size": 64,
+      "bitmap": "channel_bitmap",
+      "bank": {
+        "base": "0x00800000",
+        "stride": "0x40000",
+        "per_bank": 128
+      },
+      "fields": [
+        {
+          "name": "rx_freq",
+          "type": "bcd_be",
+          "offset": 0,
+          "length": 4,
+          "scale": 10,
+          "confidence": "high",
+          "desc": "Empfangsfrequenz als BCD in 10-Hz-Schritten"
+        },
+        {
+          "name": "tx_offset",
+          "type": "bcd_be",
+          "offset": 4,
+          "length": 4,
+          "scale": 10,
+          "confidence": "high",
+          "desc": "Ablage (bei Simplex ungenutzt oder absolute Sendefrequenz)"
+        },
+        {
+          "name": "ch_type",
+          "type": "bits",
+          "offset": 8,
+          "shift": 0,
+          "width": 2,
+          "confidence": "high",
+          "enum": [
+            "A-Analog",
+            "D-Digital",
+            "A+D",
+            "D+A"
+          ]
+        },
+        {
+          "name": "power",
+          "type": "bits",
+          "offset": 8,
+          "shift": 2,
+          "width": 2,
+          "confidence": "high",
+          "enum": [
+            "Low",
+            "Mid",
+            "High",
+            "Turbo"
+          ]
+        },
+        {
+          "name": "bandwidth",
+          "type": "bits",
+          "offset": 8,
+          "shift": 4,
+          "width": 1,
+          "confidence": "high",
+          "enum": [
+            "12.5K",
+            "25K"
+          ]
+        },
+        {
+          "name": "repeater",
+          "type": "bits",
+          "offset": 8,
+          "shift": 6,
+          "width": 2,
+          "confidence": "high",
+          "enum": [
+            "Simplex",
+            "Plus",
+            "Minus"
+          ]
+        },
+        {
+          "name": "decode_type",
+          "type": "bits",
+          "offset": 9,
+          "shift": 0,
+          "width": 2,
+          "confidence": "high",
+          "enum": [
+            "Off",
+            "CTCSS",
+            "DCS-N",
+            "DCS-I"
+          ],
+          "desc": "Art der Empfangs-Tonauswertung"
+        },
+        {
+          "name": "encode_type",
+          "type": "bits",
+          "offset": 9,
+          "shift": 2,
+          "width": 2,
+          "confidence": "high",
+          "enum": [
+            "Off",
+            "CTCSS",
+            "DCS-N",
+            "DCS-I"
+          ],
+          "desc": "Art der Sende-Tonaussendung"
+        },
+        {
+          "name": "ctcss_encode_index",
+          "type": "u8",
+          "offset": 10,
+          "confidence": "high",
+          "desc": "Index in die CTCSS-Tabelle (0 = 62.5 Hz)"
+        },
+        {
+          "name": "ctcss_decode_index",
+          "type": "u8",
+          "offset": 11,
+          "confidence": "high"
+        },
+        {
+          "name": "custom_ctcss",
+          "type": "u16",
+          "offset": 16,
+          "confidence": "high",
+          "desc": "Eigener CTCSS-Ton in 0,1 Hz (Vorgabe 2511 = 251,1 Hz)"
+        },
+        {
+          "name": "contact_index",
+          "type": "u16",
+          "offset": 20,
+          "confidence": "high",
+          "desc": "Verweis in die Kontaktliste"
+        },
+        {
+          "name": "scan_list_index",
+          "type": "u8",
+          "offset": 27,
+          "confidence": "high",
+          "desc": "Scanliste, 0xFF = keine"
+        },
+        {
+          "name": "rx_group_index",
+          "type": "u8",
+          "offset": 28,
+          "confidence": "medium",
+          "desc": "RX-Gruppenliste, 0xFF = keine"
+        },
+        {
+          "name": "color_code",
+          "type": "u8",
+          "offset": 32,
+          "confidence": "high"
+        },
+        {
+          "name": "slot",
+          "type": "bits",
+          "offset": 33,
+          "shift": 0,
+          "width": 1,
+          "confidence": "high",
+          "enum": [
+            "1",
+            "2"
+          ],
+          "desc": "Zeitschlitz"
+        },
+        {
+          "name": "name",
+          "type": "str",
+          "offset": 35,
+          "length": 16,
+          "confidence": "high"
+        }
+      ]
+    },
+    "contact": {
+      "title": "Kontakte / Talkgroups",
+      "count": 10000,
+      "record_size": 100,
+      "bitmap": "contact_bitmap",
+      "bank": {
+        "base": "0x02680000",
+        "stride": "0x40000",
+        "per_bank": 1000
+      },
+      "fields": [
+        {
+          "name": "call_type",
+          "type": "u8",
+          "offset": 0,
+          "confidence": "high",
+          "enum": [
+            "Private Call",
+            "Group Call",
+            "All Call"
+          ]
+        },
+        {
+          "name": "name",
+          "type": "str",
+          "offset": 1,
+          "length": 16,
+          "confidence": "high"
+        },
+        {
+          "name": "tg_id",
+          "type": "bcd_be",
+          "offset": 35,
+          "length": 4,
+          "confidence": "high"
+        },
+        {
+          "name": "call_alert",
+          "type": "u8",
+          "offset": 39,
+          "confidence": "medium",
+          "enum": [
+            "None",
+            "Ring",
+            "Online Alert"
+          ]
+        }
+      ]
+    },
+    "radio_id": {
+      "title": "Radio-IDs",
+      "count": 250,
+      "record_size": 32,
+      "bitmap": "radioid_bitmap",
+      "bank": {
+        "base": "0x02580000",
+        "stride": 0,
+        "per_bank": 0
+      },
+      "fields": [
+        {
+          "name": "radio_id",
+          "type": "bcd_be",
+          "offset": 0,
+          "length": 4,
+          "confidence": "high"
+        },
+        {
+          "name": "name",
+          "type": "str",
+          "offset": 5,
+          "length": 16,
+          "confidence": "high"
+        }
+      ]
+    },
+    "zone_name": {
+      "title": "Zonennamen",
+      "count": 250,
+      "record_size": 32,
+      "bitmap": "zone_bitmap",
+      "bank": {
+        "base": "0x02540000",
+        "stride": 0,
+        "per_bank": 0
+      },
+      "fields": [
+        {
+          "name": "name",
+          "type": "str",
+          "offset": 0,
+          "length": 16,
+          "confidence": "high"
+        }
+      ]
+    },
+    "zone_list": {
+      "title": "Zonen-Kanallisten",
+      "count": 250,
+      "record_size": 512,
+      "bitmap": "zone_bitmap",
+      "bank": {
+        "base": "0x01000000",
+        "stride": 0,
+        "per_bank": 0
+      },
+      "fields": [
+        {
+          "name": "members",
+          "type": "index_list",
+          "offset": 0,
+          "count": 250,
+          "item": "u16",
+          "empty": 65535,
+          "confidence": "high"
+        }
+      ]
+    },
+    "scan_list": {
+      "title": "Scanlisten",
+      "count": 250,
+      "record_size": 512,
+      "bitmap": "scanlist_bitmap",
+      "bank": {
+        "base": "0x01080000",
+        "stride": 0,
+        "per_bank": 0
+      },
+      "fields": [
+        {
+          "name": "priority_ch1",
+          "type": "u16",
+          "offset": 2,
+          "confidence": "medium"
+        },
+        {
+          "name": "priority_ch2",
+          "type": "u16",
+          "offset": 4,
+          "confidence": "medium"
+        },
+        {
+          "name": "look_back_a",
+          "type": "u16",
+          "offset": 6,
+          "confidence": "medium",
+          "desc": "in 0,1 s"
+        },
+        {
+          "name": "look_back_b",
+          "type": "u16",
+          "offset": 8,
+          "confidence": "medium"
+        },
+        {
+          "name": "dropout_delay",
+          "type": "u16",
+          "offset": 10,
+          "confidence": "medium"
+        },
+        {
+          "name": "dwell",
+          "type": "u16",
+          "offset": 12,
+          "confidence": "medium"
+        },
+        {
+          "name": "name",
+          "type": "str",
+          "offset": 15,
+          "length": 16,
+          "confidence": "high"
+        },
+        {
+          "name": "members",
+          "type": "index_list",
+          "offset": 32,
+          "count": 50,
+          "item": "u16",
+          "empty": 65535,
+          "confidence": "high"
+        }
+      ]
+    },
+    "rx_group": {
+      "title": "RX-Gruppenlisten (Empfangsgruppen)",
+      "count": 250,
+      "record_size": 512,
+      "bitmap": null,
+      "bank": {
+        "base": "0x02980000",
+        "stride": 0,
+        "per_bank": 0
+      },
+      "fields": [
+        {
+          "name": "members",
+          "type": "index_list",
+          "offset": 0,
+          "count": 64,
+          "item": "u32",
+          "empty": 4294967295,
+          "confidence": "high",
+          "desc": "Kontaktindizes, 0xFFFFFFFF beendet die Liste"
+        },
+        {
+          "name": "name",
+          "type": "str",
+          "offset": 256,
+          "length": 16,
+          "confidence": "high"
+        }
+      ]
+    },
+    "aprs": {
+      "title": "APRS-Einstellungen",
+      "count": 1,
+      "record_size": 256,
+      "bitmap": null,
+      "bank": {
+        "base": "0x02501000",
+        "stride": 0,
+        "per_bank": 0
+      },
+      "fields": [
+        {
+          "name": "fm_frequency",
+          "type": "bcd_be",
+          "offset": 1,
+          "length": 4,
+          "scale": 10,
+          "confidence": "high",
+          "desc": "Sendefrequenz der analogen Bake"
+        },
+        {
+          "name": "tx_delay",
+          "type": "u8",
+          "offset": 5,
+          "confidence": "medium",
+          "desc": "Vorlauf, 20-ms-Schritte"
+        },
+        {
+          "name": "manual_interval",
+          "type": "u8",
+          "offset": 10,
+          "confidence": "medium"
+        },
+        {
+          "name": "auto_interval",
+          "type": "u8",
+          "offset": 11,
+          "confidence": "medium",
+          "desc": "Bakenabstand, 30-s-Schritte"
+        },
+        {
+          "name": "destination",
+          "type": "str",
+          "offset": 22,
+          "length": 6,
+          "confidence": "high"
+        },
+        {
+          "name": "destination_ssid",
+          "type": "u8",
+          "offset": 28,
+          "confidence": "high"
+        },
+        {
+          "name": "source",
+          "type": "str",
+          "offset": 29,
+          "length": 6,
+          "confidence": "high",
+          "desc": "eigenes Rufzeichen"
+        },
+        {
+          "name": "source_ssid",
+          "type": "u8",
+          "offset": 35,
+          "confidence": "high"
+        },
+        {
+          "name": "path",
+          "type": "str",
+          "offset": 36,
+          "length": 20,
+          "confidence": "high"
+        },
+        {
+          "name": "symbol_table",
+          "type": "str",
+          "offset": 57,
+          "length": 1,
+          "confidence": "high"
+        },
+        {
+          "name": "symbol",
+          "type": "str",
+          "offset": 58,
+          "length": 1,
+          "confidence": "high"
+        },
+        {
+          "name": "fm_power",
+          "type": "u8",
+          "offset": 59,
+          "confidence": "medium",
+          "enum": [
+            "Low",
+            "Mid",
+            "High",
+            "Turbo"
+          ]
+        }
+      ]
+    },
+    "aprs_message": {
+      "title": "APRS-Bakennachricht",
+      "count": 1,
+      "record_size": 64,
+      "bitmap": null,
+      "bank": {
+        "base": "0x02501200",
+        "stride": 0,
+        "per_bank": 0
+      },
+      "fields": [
+        {
+          "name": "text",
+          "type": "str",
+          "offset": 0,
+          "length": 60,
+          "confidence": "high"
+        }
+      ]
+    }
+  },
+  "unzugeordnet": [
+    {
+      "addr": "0x02440000",
+      "size": "0x40000",
+      "befund": "leer, ohne Gueltigkeitsmarke; nimmt keine Schreibzugriffe an - vermutlich nicht belegt"
+    },
+    {
+      "addr": "0x02480000",
+      "size": "0x40000",
+      "befund": "belegt, BCD-artige Werte; Inhalt unbekannt"
+    },
+    {
+      "addr": "0x024C0000",
+      "size": "0x1000",
+      "befund": "belegt; enthaelt zufaellig aussehende Daten, moeglicherweise Schluesselmaterial - nicht ausgelesen"
+    },
+    {
+      "addr": "0x024E0000",
+      "size": "0x40000",
+      "befund": "Zweitkopie des Blocks 0x024C0000 (Kopienverwaltung des Geraets)"
+    },
+    {
+      "addr": "0x047E0000",
+      "size": "0x60000",
+      "befund": "kleine Zaehlerwerte; Inhalt unbekannt"
+    }
+  ],
+  "bereiche_gross": [
+    {
+      "name": "Kanaele",
+      "addr": "0x00800000",
+      "size": "0x800000",
+      "einstufung": "ausgewertet"
+    },
+    {
+      "name": "Zonen- und Scanlisten",
+      "addr": "0x01000000",
+      "size": "0x100000",
+      "einstufung": "ausgewertet"
+    },
+    {
+      "name": "Codeplug: Bitmaps, Namen, Kontakte, APRS",
+      "addr": "0x02400000",
+      "size": "0x600000",
+      "einstufung": "teils"
+    },
+    {
+      "name": "Rufzeichendatenbank: Index",
+      "addr": "0x04000000",
+      "size": "0x4C0000",
+      "einstufung": "ausgewertet"
+    },
+    {
+      "name": "Rufzeichendatenbank: Kopf",
+      "addr": "0x04840000",
+      "size": "0x1000",
+      "einstufung": "ausgewertet"
+    },
+    {
+      "name": "Rufzeichendatenbank: Datensaetze",
+      "addr": "0x05500000",
+      "size": "0x2A60000",
+      "einstufung": "ausgewertet"
+    }
+  ],
+  "revisionen": [
+    {
+      "rev": 1,
+      "datum": "2026-09-17",
+      "aenderung": "Erste Fassung aus den oeffentlich dokumentierten Adressplaenen der AT-D868/878-Familie."
+    },
+    {
+      "rev": 2,
+      "datum": "2026-09-17",
+      "aenderung": "An einem echten Abbild geprueft und korrigiert: BCD-Frequenzen, Kanalname bei 0x23, Kontaktverweis bei 0x14, Zeitschlitz in 0x21, invertiertes Kontakt-Bitmap, Scanlisten bei 0x01080000."
+    },
+    {
+      "rev": 3,
+      "datum": "2026-09-17",
+      "aenderung": "RX-Gruppenlisten bei 0x02980000 gefunden: 512 Byte je Liste, bis zu 64 Kontaktindizes als uint32, Name ab 0x100."
+    },
+    {
+      "rev": 4,
+      "datum": "2026-09-17",
+      "aenderung": "DTMF-Bereich 0x02940000 wird mitgesichert."
+    },
+    {
+      "rev": 5,
+      "datum": "2026-09-17",
+      "aenderung": "Einstellungsbereich auf 0x2000 erweitert - er enthaelt APRS (0x02501000), Bakennachricht (0x02501200) und Empfangsfilter (0x02501800). Zuvor wurde davon nur 1 KB gelesen."
+    },
+    {
+      "rev": 6,
+      "datum": "2026-09-17",
+      "aenderung": "APRS-Feldlagen an Hardware geprueft: Bakenfrequenz als BCD ab Offset 1, Zielrufzeichen ab 0x16, eigenes Rufzeichen ab 0x1D, Pfad ab 0x24, Symbol bei 0x39/0x3A."
+    },
+    {
+      "rev": 7,
+      "datum": "2026-09-17",
+      "aenderung": "Kontakte in Baenken zu 1000 Stueck adressiert. Die frueher als 'Flash-Marken' gedeuteten Datensaetze waren die Folge der vorherigen flachen Adressrechnung."
+    },
+    {
+      "rev": 8,
+      "datum": "2026-09-17",
+      "aenderung": "Kontakt-Indextabelle bei 0x02600000 aufgenommen; sie wird beim Zurueckschreiben neu berechnet."
+    },
+    {
+      "rev": 9,
+      "datum": "2026-09-17",
+      "aenderung": "Sichtbarkeits-Bitmap der Zonen bei 0x024C1360 aufgenommen."
+    },
+    {
+      "rev": 10,
+      "datum": "2026-09-18",
+      "aenderung": "Benennung getrennt (plan_revision statt Versionsnummer), Bereiche in 'ausgewertet' und 'gesichert' eingestuft, noch unzugeordnete Bereiche dokumentiert."
+    }
+  ]
+}

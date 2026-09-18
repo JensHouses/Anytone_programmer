@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "atprog"
+version = "1.00"
+description = "Programmiersoftware fuer AnyTone AT-D878UV II Plus"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+dependencies = []
+
+[project.optional-dependencies]
+serial = ["pyserial>=3.5"]
+
+[project.scripts]
+atprog = "atprog.cli:main"
+
+[tool.setuptools]
+packages = ["atprog"]
+
+[tool.setuptools.package-data]
+atprog = ["layouts/*.json", "web/*"]

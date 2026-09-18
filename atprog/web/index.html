@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AnyTone AT-D878UV II Plus Programmer</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <span class="logo">AT</span>
+    <div>
+      <h1>AT-D878UV II Plus Programmer</h1>
+      <p id="subtitle">wird geladen …</p>
+    </div>
+  </div>
+  <div class="toolbar">
+    <button data-act="project-new">Neu</button>
+    <button data-act="project-open">Öffnen …</button>
+    <button data-act="project-save" class="primary">Speichern</button>
+    <span class="sep"></span>
+    <button data-act="csv-import">CSV einlesen …</button>
+    <button data-act="csv-export">CSV schreiben …</button>
+    <button data-act="csv-userdb">DMR-ID-Liste …</button>
+    <span class="sep"></span>
+    <button data-act="validate">Prüfen</button>
+  </div>
+</header>
+
+<div class="layout">
+  <nav id="tabs">
+    <button class="tab active" data-tab="channels">Kanäle<span class="badge" id="n-channels">0</span></button>
+    <button class="tab" data-tab="zones">Zonen<span class="badge" id="n-zones">0</span></button>
+    <button class="tab" data-tab="talkgroups">Talkgroups<span class="badge" id="n-talkgroups">0</span></button>
+    <button class="tab" data-tab="rxgroups">RX-Gruppen<span class="badge" id="n-rxgroups">0</span></button>
+    <button class="tab" data-tab="scanlists">Scanlisten<span class="badge" id="n-scanlists">0</span></button>
+    <button class="tab" data-tab="radio_ids">Radio-IDs<span class="badge" id="n-radio_ids">0</span></button>
+    <button class="tab" data-tab="device">Funkgerät</button>
+    <button class="tab" data-tab="aprs">APRS</button>
+    <button class="tab" data-tab="userdb">Rufzeichen-DB</button>
+    <button class="tab" data-tab="log">Protokoll</button>
+  </nav>
+
+  <main>
+    <section id="view-table" class="view">
+      <div class="listbar">
+        <input id="search" type="search" placeholder="Suchen …" autocomplete="off">
+        <button data-act="row-add">+ Neu</button>
+        <button data-act="row-delete" class="danger">Markierte löschen</button>
+        <span class="grow"></span>
+        <span id="pageinfo" class="muted"></span>
+        <button data-act="page-prev">‹</button>
+        <button data-act="page-next">›</button>
+      </div>
+      <div class="tablewrap"><table id="grid"><thead></thead><tbody></tbody></table></div>
+    </section>
+
+    <section id="view-device" class="view hidden">
+      <div class="cards">
+        <div class="card">
+          <h2>Verbindung</h2>
+          <label>Serieller Port
+            <select id="port"></select>
+          </label>
+          <div class="row">
+            <button data-act="ports-refresh">Ports neu suchen</button>
+            <button data-act="radio-info" class="primary">Gerät erkennen</button>
+          </div>
+          <p id="radioinfo" class="muted">Noch keine Verbindung.</p>
+          <p class="hint">Gerät einschalten, USB-Kabel mit Datenadern verwenden.
+             Der Programmiermodus wird automatisch angefordert.</p>
+        </div>
+
+        <div class="card">
+          <h2>Codeplug sichern</h2>
+          <label>Zieldatei <input id="readout" value="backup.atbin"></label>
+          <label class="check"><input type="checkbox" id="readfull"> Alle Bereiche lesen (langsam, ~1,8 MB)</label>
+          <button data-act="radio-read" class="primary">Aus Gerät lesen</button>
+          <p class="hint">Es werden standardmäßig nur belegte Datensätze gelesen.
+             Die Sicherung ist vollständig zurückschreibbar.</p>
+        </div>
+
+        <div class="card warn">
+          <h2>Codeplug schreiben</h2>
+          <label>Abbilddatei <input id="writeimg" value="backup.atbin"></label>
+          <label class="check"><input type="checkbox" id="writeok"> Ich habe eine gültige Sicherung und möchte schreiben</label>
+          <button data-act="radio-write" class="danger">Ins Gerät schreiben</button>
+          <p class="hint">Vor dem Schreiben wird automatisch eine Sicherheitskopie gelesen.
+             Übertragen werden nur geänderte Blöcke, danach wird zurückgelesen und verglichen.</p>
+        </div>
+
+        <div class="card">
+          <h2>Abbild &amp; Layout</h2>
+          <label>Abbilddatei <input id="imgpath" value="backup.atbin"></label>
+          <div class="row">
+            <button data-act="image-open">Abbild laden</button>
+            <button data-act="image-decode">In Tabellen übernehmen</button>
+            <button data-act="image-apply">Änderungen ins Abbild</button>
+          </div>
+          <p class="hint">„Änderungen ins Abbild" überträgt die bearbeiteten Kanäle
+             zurück in das Abbild – nur die bekannten Felder, und nur wenn die
+             Layoutprüfung bestanden ist. Danach über „Ins Gerät schreiben" senden.</p>
+          <pre id="checks" class="mono small"></pre>
+        </div>
+
+        <div class="card">
+          <h2>Simulator</h2>
+          <p class="hint">Virtuelles Funkgerät zum gefahrlosen Ausprobieren des
+             kompletten Lese- und Schreibwegs.</p>
+          <div class="row">
+            <button data-act="sim-start">Starten</button>
+            <button data-act="sim-stop">Beenden</button>
+          </div>
+          <p id="siminfo" class="muted">nicht aktiv</p>
+        </div>
+      </div>
+
+      <div id="progress" class="progress hidden">
+        <div class="bar"><span id="barfill"></span></div>
+        <p id="barlabel" class="muted"></p>
+      </div>
+    </section>
+
+    <section id="view-aprs" class="view hidden">
+      <div class="cards">
+        <div class="card">
+          <h2>Analoge Bake</h2>
+          <div class="row">
+            <label style="flex:2">Eigenes Rufzeichen <input id="aprs-source" maxlength="6"></label>
+            <label style="flex:1">SSID <input id="aprs-source_ssid" type="number" min="0" max="15"></label>
+          </div>
+          <div class="row">
+            <label style="flex:2">Ziel <input id="aprs-destination" maxlength="6"></label>
+            <label style="flex:1">SSID <input id="aprs-destination_ssid" type="number" min="0" max="15"></label>
+          </div>
+          <label>Pfad <input id="aprs-path" maxlength="20" placeholder="WIDE1-1WIDE2-2"></label>
+          <label>Sendefrequenz (MHz) <input id="aprs-fm_frequency" placeholder="144.80000"></label>
+          <div class="row">
+            <label style="flex:1">Symboltabelle <input id="aprs-symbol_table" maxlength="1"></label>
+            <label style="flex:1">Symbol <input id="aprs-symbol" maxlength="1"></label>
+            <label style="flex:2">Sendeleistung
+              <select id="aprs-fm_power">
+                <option>Low</option><option>Mid</option><option>High</option><option>Turbo</option>
+              </select></label>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Zeiten und Text</h2>
+          <label>Bakenabstand (in 30-Sekunden-Schritten)
+            <input id="aprs-auto_interval" type="number" min="0" max="255"></label>
+          <label>Vorlauf (in 20-Millisekunden-Schritten)
+            <input id="aprs-tx_delay" type="number" min="0" max="255"></label>
+          <label>Manuelles Intervall
+            <input id="aprs-manual_interval" type="number" min="0" max="255"></label>
+          <label>Bakennachricht <input id="aprs-message" maxlength="60"></label>
+          <p id="aprs-summary" class="hint"></p>
+        </div>
+
+        <div class="card">
+          <h2>Übernehmen</h2>
+          <p class="hint">Änderungen landen zunächst im Projekt. Um sie ins Gerät zu
+             bringen: Reiter <b>Funkgerät</b> → <i>Änderungen ins Abbild</i> →
+             <i>Ins Gerät schreiben</i>. Es werden nur die geänderten Bytes
+             übertragen.</p>
+          <button data-act="aprs-reload">Aus dem Projekt neu laden</button>
+          <p class="hint">Die Werte stammen aus dem zuletzt geladenen Abbild. Ist hier
+             nichts ausgefüllt, enthält die Sicherung den Bereich noch nicht — dann
+             einmal neu aus dem Gerät lesen (Sicherungen vor Version 4.4 haben die
+             APRS-Daten nicht erfasst).</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-userdb" class="view hidden">
+      <div class="cards">
+        <div class="card">
+          <h2>Im Gerät geladen</h2>
+          <p class="hint">Die Rufzeichendatenbank zeigt beim Empfang an, wer sendet.
+             Sie liegt außerhalb des Codeplugs — Kanäle und Kontakte bleiben
+             unberührt.</p>
+          <div class="row">
+            <button data-act="userdb-info" class="primary">Gerät prüfen</button>
+            <button data-act="userdb-verify">Vollständigkeit prüfen</button>
+          </div>
+          <div id="userdb-status" class="mono small"></div>
+        </div>
+
+        <div class="card">
+          <h2>Aus dem Gerät sichern</h2>
+          <label>Zieldatei <input id="userdb-out" value="rufzeichen.csv"></label>
+          <label>Nur die ersten N Einträge (0 = alle)
+            <input id="userdb-limit-read" value="0"></label>
+          <button data-act="userdb-export">Auslesen</button>
+          <p class="hint">Lesen läuft mit 64 Byte je Kommando (gemessen rund
+             14 kB/s): die komplette Liste von etwa 300 000 Einträgen (17 MB)
+             dauert ungefähr 20 Minuten. Die Restzeit wird während des Vorgangs
+             laufend angezeigt. Danach steht die Liste unten zum Durchsuchen
+             bereit.</p>
+        </div>
+
+        <div class="card warn">
+          <h2>Liste ins Gerät schreiben</h2>
+          <label>Liste von radioid.net (CSV oder JSON)
+            <input id="userdb-csv" value="radioid-users.json"></label>
+          <button data-act="userdb-fetch">Aktuelle Liste holen</button>
+          <div class="row">
+            <label style="flex:1">Land <input id="userdb-country" placeholder="z. B. Germany"></label>
+            <label style="flex:1">ID-Präfixe <input id="userdb-prefix" placeholder="262,263"></label>
+            <label style="flex:1">Höchstzahl <input id="userdb-limit" value="0"></label>
+          </div>
+          <label class="check"><input type="checkbox" id="userdb-ok">
+            Ich möchte die Datenbank im Gerät ersetzen</label>
+          <button data-act="userdb-write" class="danger">Schreiben</button>
+          <p class="hint">Schreiben geht nur mit 16 Byte je Kommando und dauert
+             daher etwa viermal so lang wie Lesen: Deutschland rund 6 Minuten,
+             Europa etwa 20, die ganze Welt gut eineinhalb Stunden. Ist die neue
+             Liste kürzer, werden überzählige Einträge gelöscht; danach werden
+             Kopfblock und Stichproben zurückgelesen.</p>
+        </div>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <h2>Gesicherte Liste ansehen und durchsuchen</h2>
+        <div class="listbar">
+          <input id="userdb-file" value="rufzeichen.csv" style="max-width:240px">
+          <button data-act="userdb-load">Laden</button>
+          <input id="userdb-search" type="search" placeholder="Rufzeichen, Name, Ort, Land …"
+                 autocomplete="off" style="max-width:280px">
+          <span class="grow"></span>
+          <span id="userdb-pageinfo" class="muted"></span>
+          <button data-act="userdb-prev">‹</button>
+          <button data-act="userdb-next">›</button>
+        </div>
+        <div class="tablewrap" style="max-height:52vh">
+          <table id="userdb-grid">
+            <thead><tr><th>DMR-ID</th><th>Rufzeichen</th><th>Name</th><th>Ort</th>
+                       <th>Region</th><th>Land</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="userdb-progress" class="progress hidden">
+        <div class="bar"><span id="userdb-bar"></span></div>
+        <p id="userdb-label" class="muted"></p>
+      </div>
+    </section>
+
+    <section id="view-log" class="view hidden">
+      <pre id="log" class="mono"></pre>
+    </section>
+  </main>
+</div>
+
+<div id="modal" class="modal hidden">
+  <div class="sheet">
+    <h2 id="modal-title">Titel</h2>
+    <p id="modal-text" class="muted"></p>
+    <input id="modal-input">
+    <div class="row end">
+      <button data-act="modal-cancel">Abbrechen</button>
+      <button data-act="modal-ok" class="primary">OK</button>
+    </div>
+  </div>
+</div>
+
+<div id="report" class="modal hidden">
+  <div class="sheet wide">
+    <h2 id="report-title">Prüfergebnis</h2>
+    <div id="report-body" class="mono small"></div>
+    <div class="row end"><button data-act="report-close" class="primary">Schließen</button></div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+<script src="app.js"></script>
+</body>
+</html>

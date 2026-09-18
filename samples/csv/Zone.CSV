@@ -1,0 +1,3 @@
+﻿No.,Zone Name,Zone Channel Member,Zone Channel Member RX Frequency,Zone Channel Member TX Frequency,A Channel,A Channel RX Frequency,A Channel TX Frequency,B Channel,B Channel RX Frequency,B Channel TX Frequency,Zone Hide 
+1,Heimat,DB0XYZ TS1 DL|DB0XYZ TS2 Ort|DB0ABC TS1 Welt|DB0ABC TS2 Lokal|Simplex S0|DB0FM 70cm,438.50000|438.50000|439.48750|439.48750|433.45000|438.70000,430.90000|430.90000|431.88750|431.88750|433.45000|431.10000,DB0XYZ TS1 DL,438.50000,430.90000,DB0FM 70cm,438.70000,431.10000,0
+2,Simplex,Simplex S0|S20 Simplex,433.45000|145.31250,433.45000|145.31250,Simplex S0,433.45000,433.45000,S20 Simplex,145.31250,145.31250,0

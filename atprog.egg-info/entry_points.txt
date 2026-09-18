@@ -1,0 +1,2 @@
+[console_scripts]
+atprog = atprog.cli:main
