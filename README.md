@@ -15,7 +15,7 @@ CSV-Austausch.
 
 > **Neu hier und kein Computerprofi?** Die
 > [Schritt-für-Schritt-Anleitung](ANLEITUNG.md) erklärt Herunterladen,
-> Installation und den ersten Start ohne Vorkenntnisse — inklusive
+> Installation und den ersten Start ohne Vorkenntnisse, inklusive
 > Doppelklick-Start über `Start-Windows.bat` bzw. `Start-macOS.command`.
 
 ---
