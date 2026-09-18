@@ -49,9 +49,22 @@
         <button data-act="row-add">+ Neu</button>
         <button data-act="row-delete" class="danger">Markierte löschen</button>
         <span class="grow"></span>
+        <span id="dirtyinfo" class="hidden"></span>
         <span id="pageinfo" class="muted"></span>
         <button data-act="page-prev">‹</button>
         <button data-act="page-next">›</button>
+      </div>
+      <div id="bulkbar" class="bulkbar hidden">
+        <span id="selcount"></span>
+        <button data-act="sel-clear">Auswahl aufheben</button>
+        <span class="sep"></span>
+        <label class="inline">Eigenschaft
+          <select id="bulk-field"></select>
+        </label>
+        <label class="inline">Wert
+          <span id="bulk-value-slot"><input id="bulk-value"></span>
+        </label>
+        <button data-act="bulk-apply" class="primary">Auf Auswahl anwenden</button>
       </div>
       <div class="tablewrap"><table id="grid"><thead></thead><tbody></tbody></table></div>
     </section>
@@ -85,6 +98,7 @@
           <h2>Codeplug schreiben</h2>
           <label>Abbilddatei <input id="writeimg" value="backup.atbin"></label>
           <label class="check"><input type="checkbox" id="writeok"> Ich habe eine gültige Sicherung und möchte schreiben</label>
+          <p id="writedirty" class="hint hidden"></p>
           <button data-act="radio-write" class="danger">Ins Gerät schreiben</button>
           <p class="hint">Vor dem Schreiben wird automatisch eine Sicherheitskopie gelesen.
              Übertragen werden nur geänderte Blöcke, danach wird zurückgelesen und verglichen.</p>

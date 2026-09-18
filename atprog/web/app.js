@@ -129,6 +129,16 @@ async function refreshState() {
   if (current && st.ports.includes(current)) sel.value = current;
   $("#log").textContent = (st.log || []).join("\n");
   $("#siminfo").textContent = st.simulator ? "läuft auf " + st.simulator : "nicht aktiv";
+  const dirty = st.project.dirty_channels || 0;
+  const einer = dirty === 1;
+  $("#dirtyinfo").textContent =
+    dirty ? `${dirty} ${einer ? "Kanal" : "Kanäle"} nicht im Gerät` : "";
+  $("#dirtyinfo").classList.toggle("hidden", !dirty);
+  $("#writedirty").textContent = dirty
+    ? `${dirty} ${einer ? "Kanal ist" : "Kanäle sind"} noch nicht ins Gerät geschrieben `
+      + `– zuerst „Änderungen ins Abbild“ ausführen.`
+    : "";
+  $("#writedirty").classList.toggle("hidden", !dirty);
   return st;
 }
 
@@ -142,7 +152,6 @@ async function loadRows() {
   const data = await api("/api/rows?" + params.toString());
   state.rows = data.rows;
   state.total = data.total;
-  state.selected.clear();
   renderTable();
 }
 
@@ -150,20 +159,87 @@ function renderTable() {
   const cols = COLUMNS[state.tab];
   const thead = $("#grid thead");
   const tbody = $("#grid tbody");
-  thead.innerHTML = "<tr><th class='sel'></th><th>#</th>" +
+  thead.innerHTML = "<tr><th class='sel'><input type='checkbox' data-role='sel-all'" +
+    " title='Alle auf dieser Seite auswählen'></th><th>#</th>" +
     cols.map((c) => `<th>${c[1]}</th>`).join("") + "</tr>";
   tbody.innerHTML = "";
   for (const row of state.rows) {
     const tr = document.createElement("tr");
     tr.dataset.index = row.i;
-    tr.innerHTML = `<td class="sel"><input type="checkbox" data-role="sel"></td>
+    const chosen = state.selected.has(row.i);
+    tr.innerHTML = `<td class="sel"><input type="checkbox" data-role="sel"${chosen ? " checked" : ""}></td>
                     <td class="muted">${row.i + 1}</td>` +
       cols.map(([key, , kind, width]) => cell(row, key, kind, width)).join("");
+    tr.classList.toggle("selected", chosen);
+    if (row.dirty) {
+      tr.classList.add("dirty");
+      tr.title = row.dirty === 2 ? "Im Abbild übernommen, aber noch nicht ins Gerät geschrieben"
+                                 : "Geändert, noch nicht ins Gerät geschrieben";
+    }
     tbody.appendChild(tr);
   }
   const from = state.total ? state.page * PAGE + 1 : 0;
   const to = Math.min(state.total, (state.page + 1) * PAGE);
   $("#pageinfo").textContent = `${from}–${to} von ${state.total}`;
+  lastSelPos = null;
+  updateSelUI();
+}
+
+// ---------------------------------------------------------------- Auswahl
+// Zeilenposition des letzten Auswahl-Klicks auf der aktuellen Seite,
+// Ausgangspunkt für die Bereichsauswahl mit Shift.
+let lastSelPos = null;
+
+// Nur Felder, die für alle Kanäle denselben Wert tragen dürfen, sind für
+// die Sammeländerung sinnvoll; das Backend weist sie zusätzlich ab.
+const BULK_EXCLUDE = new Set(["name", "rx", "tx"]);
+
+// Pflegt Häkchen, Zeilenhervorhebung und Auswahlliste in einem Schritt.
+function setRowSelected(tr, on) {
+  const box = tr.querySelector('input[data-role="sel"]');
+  if (box) box.checked = on;
+  tr.classList.toggle("selected", on);
+  const index = Number(tr.dataset.index);
+  on ? state.selected.add(index) : state.selected.delete(index);
+}
+
+function updateSelUI() {
+  const boxes = $$('#grid tbody input[data-role="sel"]');
+  const onPage = boxes.filter((b) => b.checked).length;
+  const all = $('#grid thead input[data-role="sel-all"]');
+  if (all) {
+    all.checked = boxes.length > 0 && onPage === boxes.length;
+    all.indeterminate = onPage > 0 && onPage < boxes.length;
+  }
+  const n = state.selected.size;
+  const show = state.tab === "channels" && n >= 2;
+  $("#bulkbar").classList.toggle("hidden", !show);
+  if (show) $("#selcount").textContent = `${n} Kanäle ausgewählt`;
+}
+
+function fillBulkFields() {
+  const sel = $("#bulk-field");
+  sel.innerHTML = COLUMNS.channels
+    .filter(([key, , kind]) => !BULK_EXCLUDE.has(key) && kind !== "ro")
+    .map(([key, title]) => `<option value="${key}">${title}</option>`).join("");
+  renderBulkValue();
+}
+
+// Tauscht das Wert-Element passend zur gewählten Eigenschaft: feste
+// Optionslisten werden zur Auswahl, Zahlen zum Zahlenfeld. Kein Vorbelegen
+// mit Ist-Werten - die Auswahl kann Zeilen außerhalb der geladenen Seite
+// enthalten, deren Werte hier nicht bekannt sind.
+function renderBulkValue() {
+  const key = $("#bulk-field").value;
+  const col = COLUMNS.channels.find((c) => c[0] === key) || [];
+  const slot = $("#bulk-value-slot");
+  if (Array.isArray(col[2])) {
+    slot.innerHTML = `<select id="bulk-value">` +
+      col[2].map((o) => `<option>${o}</option>`).join("") + `</select>`;
+  } else {
+    const type = col[2] === "num" ? ' type="number"' : "";
+    slot.innerHTML = `<input id="bulk-value"${type} placeholder="neuer Wert für alle">`;
+  }
 }
 
 function cell(row, key, kind, width) {
@@ -201,6 +277,12 @@ async function saveCell(el) {
   }
   el.classList.add("saved");
   setTimeout(() => el.classList.remove("saved"), 600);
+  if (state.tab === "channels") {
+    // Sofort sichtbar machen; das Backend hat den Kanal bereits als
+    // ungeschrieben vermerkt, das nächste Laden bestätigt die Markierung.
+    tr.classList.add("dirty");
+    tr.title = "Geändert, noch nicht ins Gerät geschrieben";
+  }
   if (key === "channels" || key === "contacts") await loadRows();
   refreshState();
 }
@@ -211,13 +293,14 @@ const ACTIONS = {
     const name = await ask("Neues Projekt", "Name des Projekts", "Neues Projekt");
     if (name === null) return;
     await api("/api/project/new", { name });
+    state.selected.clear();
     await loadRows(); refreshState(); toast("Neues Projekt angelegt");
   },
   async "project-open"() {
     const path = await ask("Projekt öffnen", "Pfad zur .json-Projektdatei", "codeplug.json");
     if (!path) return;
     const res = await api("/api/project/open", { path });
-    res.ok ? (await loadRows(), refreshState(), toast("Projekt geladen"))
+    res.ok ? (state.selected.clear(), await loadRows(), refreshState(), toast("Projekt geladen"))
            : toast(res.error, true);
   },
   async "project-save"() {
@@ -233,6 +316,7 @@ const ACTIONS = {
     if (!dir) return;
     const res = await api("/api/csv/import", { dir });
     if (!res.ok) return toast(res.error, true);
+    state.selected.clear();
     await loadRows(); refreshState();
     toast("Eingelesen: " + res.loaded.join(", "));
   },
@@ -272,6 +356,7 @@ const ACTIONS = {
     const res = await api("/api/row/add", { kind: state.tab, row: {} });
     if (!res.ok) return toast(res.error, true);
     state.page = Math.floor(state.total / PAGE);
+    state.selected.clear();
     await loadRows(); refreshState();
   },
   async "row-delete"() {
@@ -279,7 +364,25 @@ const ACTIONS = {
     if (!indexes.length) return toast("Keine Zeilen markiert", true);
     if (!confirm(`${indexes.length} Einträge löschen?`)) return;
     await api("/api/row/delete", { kind: state.tab, indexes });
+    state.selected.clear();          // die Indizes dahinter sind verrutscht
     await loadRows(); refreshState();
+  },
+  "sel-clear"() {
+    state.selected.clear();
+    renderTable();
+  },
+  async "bulk-apply"() {
+    const indexes = Array.from(state.selected);
+    if (!indexes.length) return toast("Keine Kanäle ausgewählt", true);
+    const field = $("#bulk-field").value;
+    const value = $("#bulk-value").value;
+    if (value === "") return toast("Bitte einen Wert angeben", true);
+    const res = await api("/api/rows/save",
+      { kind: "channels", indexes, row: { [field]: value } });
+    if (!res.ok) return toast(res.error, true);
+    await loadRows(); refreshState();
+    toast(`${res.changed} Kanäle geändert`
+      + (res.skipped ? `, ${res.skipped} übersprungen` : ""));
   },
   "page-prev"() { if (state.page > 0) { state.page--; loadRows(); } },
   "page-next"() { if ((state.page + 1) * PAGE < state.total) { state.page++; loadRows(); } },
@@ -300,6 +403,7 @@ const ACTIONS = {
       $("#checks").textContent = (result.checks || []).join("\n");
       $("#writeimg").value = result.path;
       $("#imgpath").value = result.path;
+      state.selected.clear();
       loadRows();
       report("Codeplug gesichert",
         `<p>${result.path} · ${result.bytes} Byte</p><pre>${(result.checks || []).join("\n")}</pre>`);
@@ -312,6 +416,7 @@ const ACTIONS = {
       port: $("#port").value, image: $("#writeimg").value, confirm: true });
     if (!res.ok) return toast(res.error, true);
     watchTask((result) => {
+      loadRows();                     // Ungeschrieben-Markierungen auffrischen
       report("Schreiben abgeschlossen",
         `<p>${result.summary}</p><p class="muted">Sicherheitskopie: ${result.backup}</p>` +
         (result.mismatches && result.mismatches.length
@@ -328,6 +433,7 @@ const ACTIONS = {
   async "image-decode"() {
     const res = await api("/api/image/decode", {});
     if (!res.ok) return toast(res.error, true);
+    state.selected.clear();
     await loadRows(); refreshState();
     toast("Übernommen: " + Object.entries(res.stats).map(([k, v]) => `${k} ${v}`).join(", "));
   },
@@ -516,6 +622,29 @@ function watchTask(onDone, boxId) {
 
 // ---------------------------------------------------------------- Ereignisse
 document.addEventListener("click", (ev) => {
+  // Auswahl-Häkchen laufen über "click" statt "change": nur dort gibt es
+  // shiftKey für die Bereichsauswahl, und programmatisch gesetzte Häkchen
+  // lösen kein "change" aus.
+  const role = ev.target.dataset && ev.target.dataset.role;
+  if (role === "sel") {
+    const rows = $$("#grid tbody tr");
+    const pos = rows.indexOf(ev.target.closest("tr"));
+    if (ev.shiftKey && lastSelPos !== null && pos !== -1) {
+      const [from, to] = [Math.min(lastSelPos, pos), Math.max(lastSelPos, pos)];
+      for (let i = from; i <= to; i++) setRowSelected(rows[i], ev.target.checked);
+    } else if (pos !== -1) {
+      setRowSelected(rows[pos], ev.target.checked);
+    }
+    lastSelPos = pos;
+    updateSelUI();
+    return;
+  }
+  if (role === "sel-all") {
+    $$("#grid tbody tr").forEach((tr) => setRowSelected(tr, ev.target.checked));
+    lastSelPos = null;
+    updateSelUI();
+    return;
+  }
   const act = ev.target.dataset && ev.target.dataset.act;
   if (act && ACTIONS[act]) { ev.preventDefault(); ACTIONS[act](); return; }
   const tab = ev.target.closest && ev.target.closest(".tab");
@@ -523,6 +652,7 @@ document.addEventListener("click", (ev) => {
     $$(".tab").forEach((t) => t.classList.toggle("active", t === tab));
     state.tab = tab.dataset.tab;
     state.page = 0;
+    state.selected.clear();
     const isTable = !!COLUMNS[state.tab];
     $("#view-table").classList.toggle("hidden", !isTable);
     $("#view-device").classList.toggle("hidden", state.tab !== "device");
@@ -537,11 +667,7 @@ document.addEventListener("click", (ev) => {
 
 document.addEventListener("change", (ev) => {
   const el = ev.target;
-  if (el.dataset.role === "sel") {
-    const index = Number(el.closest("tr").dataset.index);
-    el.checked ? state.selected.add(index) : state.selected.delete(index);
-    return;
-  }
+  if (el.id === "bulk-field") return renderBulkValue();
   if (el.dataset.key) saveCell(el);
 });
 
@@ -576,11 +702,13 @@ $("#search").addEventListener("input", (ev) => {
   searchTimer = setTimeout(() => {
     state.query = ev.target.value;
     state.page = 0;
+    state.selected.clear();
     loadRows();
   }, 200);
 });
 
 (async function start() {
+  fillBulkFields();
   await refreshState();
   await loadRows();
   setInterval(refreshState, 5000);

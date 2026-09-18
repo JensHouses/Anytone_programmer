@@ -22,6 +22,7 @@
     --danger:     #c22f2f;   /* Löschen, Fehler */
     --warn:       #8a6100;   /* Warnhinweise */
     --ok:         #1a7f45;   /* Erfolg */
+    --sel-bg:     rgba(31, 111, 235, .10);   /* ausgewählte Zeilen, Sammelleiste */
     --radius:     10px;
 }
 
@@ -36,6 +37,7 @@
         --danger: #ff6b6b;
         --warn:   #e0b000;
         --ok:     #4ec97f;
+        --sel-bg: rgba(76, 141, 255, .14);
     }
 }
 
@@ -338,6 +340,48 @@ td.num input {
 
 td.sel {
     width: 28px;
+}
+
+/* Ausgewählte Zeilen */
+tbody tr.selected,
+tbody tr.selected:hover {
+    background: var(--sel-bg);
+}
+
+/* Geändert, aber noch nicht ins Gerät geschrieben: Streifen am linken Rand */
+tbody tr.dirty {
+    box-shadow: inset 3px 0 0 var(--warn);
+}
+
+#dirtyinfo {
+    color: var(--warn);
+    font-size: 12px;
+}
+
+/* Leiste für die Sammeländerung, erscheint bei Mehrfachauswahl */
+.bulkbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: -4px 0 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--accent);
+    border-radius: var(--radius);
+    background: var(--sel-bg);
+}
+
+.bulkbar label.inline {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+}
+
+.bulkbar select,
+.bulkbar input {
+    width: auto;
+    min-width: 140px;
 }
 
 /* ------------------------------------------------------------------ Karten */

@@ -172,7 +172,16 @@ def channel_row(ch: Channel, index: int) -> Dict[str, Any]:
             "ctcss_decode": ch.ctcss_decode, "ctcss_encode": ch.ctcss_encode,
             "tx_permit": ch.tx_permit, "squelch_mode": ch.squelch_mode,
             "ptt_prohibit": ch.ptt_prohibit, "talkaround": ch.talkaround,
-            "reverse": ch.reverse}
+            "reverse": ch.reverse,
+            "dirty": int(ch.extra.get("_dirty") or 0)}
+
+
+def mark_dirty(ch: Channel) -> None:
+    """Merkt einen Kanal als geaendert, solange die Aenderung noch nicht im
+    Geraet ist. Stufen: "1" = nur im Projekt, "2" = ins Abbild uebernommen
+    (siehe _image_apply/_radio_write). Der Unterstrich haelt den Marker aus
+    dem CSV-Export heraus."""
+    ch.extra["_dirty"] = "1"
 
 
 def apply_channel(ch: Channel, row: Dict[str, Any]) -> Channel:
@@ -278,6 +287,7 @@ class Handler(BaseHTTPRequestHandler):
         body = self._body()
         handlers = {
             "/api/row/save": self._row_save,
+            "/api/rows/save": self._rows_save,
             "/api/row/add": self._row_add,
             "/api/row/delete": self._row_delete,
             "/api/project/new": self._project_new,
@@ -329,7 +339,9 @@ class Handler(BaseHTTPRequestHandler):
         return {
             "app": {"title": APP_TITLE, "version": __version__, "backend": describe_backend()},
             "project": {"name": s.project.name, "path": s.project_path,
-                        "stats": s.project.stats()},
+                        "stats": s.project.stats(),
+                        "dirty_channels": sum(1 for c in s.project.channels
+                                              if c.extra.get("_dirty"))},
             "image": {"path": s.image_path,
                       "size": s.image.size() if s.image else 0,
                       "meta": s.image.meta if s.image else {}},
@@ -403,7 +415,10 @@ class Handler(BaseHTTPRequestHandler):
         followed = 0
         if kind == "channels":
             old_name = item.name
+            before = channel_row(item, index)
             apply_channel(item, row)
+            if channel_row(item, index) != before:
+                mark_dirty(item)
             if item.name != old_name:
                 followed = cp.rename_channel(old_name, item.name)
         elif kind == "talkgroups":
@@ -433,6 +448,36 @@ class Handler(BaseHTTPRequestHandler):
                             " (%d Verweise nachgefuehrt)" % followed if followed else ""))
         return {"ok": True, "followed": followed}
 
+    def _rows_save(self, body: Dict[str, Any]) -> Dict[str, Any]:
+        """Setzt dieselben Felder fuer mehrere Kanaele auf einmal."""
+        if body.get("kind") != "channels":
+            return {"ok": False, "error": "Sammelaenderung gibt es nur fuer Kanaele"}
+        row = dict(body.get("row") or {})
+        # name, rx und tx sind je Kanal individuell. name muss zudem raus,
+        # weil apply_channel es sonst immer setzt und so Duplikate entstuenden.
+        for key in ("name", "rx", "tx"):
+            row.pop(key, None)
+        if not row:
+            return {"ok": False, "error": "Keine Felder angegeben"}
+        indexes = sorted({int(i) for i in (body.get("indexes") or [])})
+        if not indexes:
+            return {"ok": False, "error": "Keine Zeilen angegeben"}
+        items = self.session.project.channels
+        changed = skipped = 0
+        for idx in indexes:
+            if not 0 <= idx < len(items):
+                skipped += 1
+                continue
+            ch = items[idx]
+            before = channel_row(ch, idx)
+            apply_channel(ch, row)
+            if channel_row(ch, idx) != before:
+                mark_dirty(ch)
+                changed += 1
+        self.session.say("channels: %d Kanaele gemeinsam geaendert (%s)"
+                         % (changed, ", ".join(sorted(row))))
+        return {"ok": True, "changed": changed, "skipped": skipped}
+
     def _row_add(self, body: Dict[str, Any]) -> Dict[str, Any]:
         kind, row = body.get("kind"), body.get("row") or {}
         cp = self.session.project
@@ -440,6 +485,7 @@ class Handler(BaseHTTPRequestHandler):
             ch = apply_channel(Channel(), row)
             if not ch.name:
                 ch.name = "Kanal %d" % (len(cp.channels) + 1)
+            mark_dirty(ch)
             cp.channels.append(ch)
         elif kind == "talkgroups":
             cp.talkgroups.append(TalkGroup(name=str(row.get("name", "TG"))[:16],
@@ -645,8 +691,20 @@ class Handler(BaseHTTPRequestHandler):
                                      progress=prog, log=s.say, current=before)
             finally:
                 radio.close()
+            # Nur wenn das zuletzt uebernommene Abbild geschrieben wurde, sind
+            # die Aenderungen der Stufe "2" jetzt im Geraet. Spaeter erneut
+            # geaenderte Kanaele stehen wieder auf "1" und bleiben markiert.
+            cleared = 0
+            if os.path.abspath(image_path) == os.path.abspath(s.image_path or ""):
+                with s.lock:
+                    for ch in s.project.channels:
+                        if ch.extra.get("_dirty") == "2":
+                            ch.extra.pop("_dirty", None)
+                            cleared += 1
+            if cleared:
+                s.say("%d Kanaele sind jetzt im Geraet" % cleared)
             s.say("Schreiben beendet: %s" % report.summary())
-            return {"backup": backup, "summary": report.summary(),
+            return {"backup": backup, "summary": report.summary(), "cleared": cleared,
                     "mismatches": ["0x%08X" % a for a in report.mismatches[:20]]}
         return s.start_task("Codeplug schreiben", job)
 
@@ -689,6 +747,13 @@ class Handler(BaseHTTPRequestHandler):
         out = s.path(str(body.get("out") or "geaendert.atbin"))
         patched.save(out)
         s.image, s.image_path = patched, out
+        # Diese Kanaele sind jetzt im Abbild, aber noch nicht im Geraet.
+        # Erst ein erfolgreiches Schreiben dieses Abbilds loescht Stufe "2";
+        # Kanaele ohne _index kann patch_channels nicht uebernehmen.
+        with s.lock:
+            for ch in s.project.channels:
+                if ch.extra.get("_dirty") == "1" and ch.extra.get("_index") is not None:
+                    ch.extra["_dirty"] = "2"
         s.say("Aenderungen uebernommen: %d Stellen -> %s" % (spots, out))
         return {"ok": True, "path": out, "spots": spots, "reason": reason}
 

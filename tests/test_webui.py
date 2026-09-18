@@ -185,6 +185,127 @@ class WebUI(unittest.TestCase):
 
         self.assertTrue(post("/api/simulator", {"action": "stop"})["ok"])
 
+    @staticmethod
+    def _clear_dirty():
+        """Ungeschrieben-Marker direkt entfernen - als haette das Geraet den
+        Stand schon; nur so laesst sich das Setzen isoliert pruefen."""
+        for ch in Handler.session.project.channels:
+            ch.extra.pop("_dirty", None)
+
+    def test_06_bulk_save(self):
+        """Sammelaenderung setzt Felder fuer mehrere Kanaele auf einmal."""
+        post("/api/project/new", {"name": "bulk"})
+        for name in ("Alpha", "Beta", "Gamma"):
+            post("/api/row/add", {"kind": "channels",
+                                  "row": {"name": name, "rx": "438.5", "tx": "430.9"}})
+        # Neu angelegte Kanaele gelten als noch nicht geschrieben.
+        self.assertTrue(all(r["dirty"] == 1
+                            for r in get("/api/rows?kind=channels")["rows"]))
+        self._clear_dirty()
+
+        # name und rx duerfen nicht mitgehen: name wuerde Duplikate erzeugen.
+        res = post("/api/rows/save", {"kind": "channels", "indexes": [0, 2],
+                                      "row": {"power": "Low", "name": "BOESE",
+                                              "rx": "999.0"}})
+        self.assertTrue(res["ok"], res)
+        self.assertEqual(res["changed"], 2)
+        self.assertEqual(res["skipped"], 0)
+        rows = get("/api/rows?kind=channels")["rows"]
+        self.assertEqual([r["name"] for r in rows], ["Alpha", "Beta", "Gamma"])
+        self.assertEqual([r["rx"] for r in rows], ["438.50000"] * 3)
+        self.assertEqual([r["power"] for r in rows], ["Low", "High", "Low"])
+        self.assertEqual([r["dirty"] for r in rows], [1, 0, 1])
+
+        # Gleicher Wert noch einmal: nichts aendert sich, nichts wird markiert.
+        again = post("/api/rows/save", {"kind": "channels", "indexes": [0, 2],
+                                        "row": {"power": "Low"}})
+        self.assertEqual(again["changed"], 0)
+
+        # Indizes ausserhalb werden gezaehlt, nicht angewendet.
+        off = post("/api/rows/save", {"kind": "channels", "indexes": [99],
+                                      "row": {"power": "Mid"}})
+        self.assertEqual((off["changed"], off["skipped"]), (0, 1))
+
+        # Nur Kanaele; leere Angaben sind Fehler.
+        self.assertFalse(post("/api/rows/save", {"kind": "talkgroups",
+                                                 "indexes": [0],
+                                                 "row": {"call_type": "All Call"}})["ok"])
+        self.assertFalse(post("/api/rows/save", {"kind": "channels", "indexes": [],
+                                                 "row": {"power": "Low"}})["ok"])
+        self.assertFalse(post("/api/rows/save", {"kind": "channels", "indexes": [0],
+                                                 "row": {"name": "nur verbotene"}})["ok"])
+
+    def test_07_dirty_counter_and_row_save(self):
+        """Zaehler im Zustand; Einzelaenderung markiert nur echte Aenderungen."""
+        self.assertEqual(get("/api/state")["project"]["dirty_channels"], 2)
+
+        post("/api/row/save", {"kind": "channels", "index": 1,
+                               "row": {"power": "Turbo"}})
+        self.assertEqual(get("/api/state")["project"]["dirty_channels"], 3)
+
+        # Speichern ohne Wertaenderung setzt keinen Marker.
+        self._clear_dirty()
+        post("/api/row/save", {"kind": "channels", "index": 1,
+                               "row": {"power": "Turbo"}})
+        rows = get("/api/rows?kind=channels")["rows"]
+        self.assertEqual([r["dirty"] for r in rows], [0, 0, 0])
+        post("/api/row/save", {"kind": "channels", "index": 1,
+                               "row": {"power": "Mid"}})
+        self.assertEqual(get("/api/rows?kind=channels")["rows"][1]["dirty"], 1)
+
+    def test_08_dirty_survives_project_roundtrip(self):
+        """Der Marker uebersteht Speichern/Laden, bleibt aber aus der CSV."""
+        self.assertEqual(get("/api/state")["project"]["dirty_channels"], 1)
+        post("/api/project/save", {"path": "dirty.json"})
+        post("/api/project/new", {"name": "leer"})
+        post("/api/project/open", {"path": "dirty.json"})
+        rows = get("/api/rows?kind=channels")["rows"]
+        self.assertEqual([r["dirty"] for r in rows], [0, 1, 0])
+
+        exported = post("/api/csv/export", {"dir": "csv-dirty"})
+        path = os.path.join(exported["dir"], "Channel.CSV")
+        with open(path, encoding="utf-8") as fh:
+            self.assertNotIn("_dirty", fh.read())
+
+    def test_09_dirty_lifecycle_simulator(self):
+        """Lesen -> aendern (1) -> Abbild (2) -> schreiben (weg); spaetere
+        Aenderungen ueberleben das Schreiben."""
+        sim = post("/api/simulator", {"action": "start", "channels": 4})
+        self.assertTrue(sim["ok"])
+        port = sim["port"]
+        try:
+            post("/api/radio/read", {"port": port, "out": "lc.atbin"})
+            self.assertIsNone(wait_task()["error"])
+            rows = get("/api/rows?kind=channels")["rows"]
+            self.assertTrue(all(r["dirty"] == 0 for r in rows))
+
+            anders = lambda r: "Low" if r["power"] != "Low" else "High"
+            post("/api/row/save", {"kind": "channels", "index": 0,
+                                   "row": {"power": anders(rows[0])}})
+            self.assertEqual(get("/api/rows?kind=channels")["rows"][0]["dirty"], 1)
+
+            applied = post("/api/image/apply", {"out": "lc-geaendert.atbin"})
+            self.assertTrue(applied["ok"], applied)
+            self.assertEqual(get("/api/rows?kind=channels")["rows"][0]["dirty"], 2)
+            self.assertEqual(get("/api/state")["project"]["dirty_channels"], 1)
+
+            # Aenderung nach dem Uebernehmen: Stufe 1, muss das Schreiben ueberleben.
+            rows = get("/api/rows?kind=channels")["rows"]
+            post("/api/row/save", {"kind": "channels", "index": 1,
+                                   "row": {"power": anders(rows[1])}})
+
+            post("/api/radio/write", {"port": port, "image": "lc-geaendert.atbin",
+                                      "confirm": True})
+            task = wait_task(timeout=120)
+            self.assertIsNone(task["error"])
+            self.assertEqual(task["result"]["cleared"], 1)
+            rows = get("/api/rows?kind=channels")["rows"]
+            self.assertEqual(rows[0]["dirty"], 0)
+            self.assertEqual(rows[1]["dirty"], 1)
+            self.assertEqual(get("/api/state")["project"]["dirty_channels"], 1)
+        finally:
+            post("/api/simulator", {"action": "stop"})
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
