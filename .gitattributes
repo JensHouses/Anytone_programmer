@@ -1,0 +1,2 @@
+# Windows-Batchdateien brauchen CRLF-Zeilenenden, auch im GitHub-ZIP.
+*.bat text eol=crlf

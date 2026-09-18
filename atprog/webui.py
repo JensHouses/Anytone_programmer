@@ -898,7 +898,7 @@ def serve(host: str = "127.0.0.1", port: int = 8787, open_browser: bool = True,
     url = "http://%s:%d/" % (host, port)
     print("%s %s" % (APP_TITLE, __version__))
     print("Oberflaeche: %s   (Arbeitsverzeichnis: %s)" % (url, Handler.session.workdir))
-    print("Beenden mit Strg-C.")
+    print("Beenden mit Strg-C./control-c")
     if open_browser:
         threading.Timer(0.6, lambda: webbrowser.open(url)).start()
     try:

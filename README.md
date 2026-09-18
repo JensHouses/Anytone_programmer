@@ -13,12 +13,17 @@ CSV-Austausch.
 * **Ohne Funkgerät testbar.** Ein eingebauter Simulator spricht das komplette
   Protokoll.
 
+> **Neu hier und kein Computerprofi?** Die
+> [Schritt-für-Schritt-Anleitung](ANLEITUNG.md) erklärt Herunterladen,
+> Installation und den ersten Start ohne Vorkenntnisse — inklusive
+> Doppelklick-Start über `Start-Windows.bat` bzw. `Start-macOS.command`.
+
 ---
 
 ## Schnellstart
 
 ```bash
-cd /Users/jens/Anytone_prog
+cd Anytone_programmer     # der entpackte Projektordner
 python3 run.py gui
 ```
 
@@ -63,7 +68,7 @@ python3 run.py simulate                   # virtuelles Funkgerät starten
 Installation als Befehl `atprog` (optional):
 
 ```bash
-pip3 install -e /Users/jens/Anytone_prog
+pip3 install -e .          # im Projektordner ausführen
 ```
 
 ---

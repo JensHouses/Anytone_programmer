@@ -964,7 +964,7 @@ def cmd_simulate(args) -> int:
     populate_demo(sim, channels=args.channels)
     print("Simuliertes Funkgeraet laeuft auf %s" % port)
     print("Beispiel:  atprog read --port %s --out demo.atbin" % port)
-    print("Beenden mit Strg-C.")
+    print("Beenden mit Strg-C./control-c")
     try:
         while True:
             time.sleep(1)
